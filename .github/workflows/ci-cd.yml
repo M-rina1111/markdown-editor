@@ -1,0 +1,95 @@
+name: CI/CD (Build & Package Portable EXE)
+
+on:
+  push:
+    branches:
+      - master
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - master
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-package:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Temurin JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '25'
+          cache: 'maven'
+
+      - name: Build JAR and copy dependencies
+        shell: pwsh
+        run: |
+          if (Test-Path target) {
+            Remove-Item -Force -Recurse target
+          }
+          .\mvnw.cmd --batch-mode package dependency:copy-dependencies
+
+      - name: Package portable Windows app-image
+        shell: pwsh
+        run: |
+          if (Test-Path target/dist/MarkdownEditor) {
+            Remove-Item -Force -Recurse target/dist/MarkdownEditor
+          }
+          $appJar = (Get-ChildItem target -Filter "markdown_editor-*.jar" | Select-Object -First 1).FullName
+          if (-not $appJar) {
+            throw "Application JAR not found in target/"
+          }
+          & "$env:JAVA_HOME\bin\jpackage.exe" `
+            --type app-image `
+            --dest target/dist `
+            --name MarkdownEditor `
+            --module-path "$appJar;target/dependency" `
+            --module markdown_editor/application.MarkdownEditor `
+            --app-version 0.0.1
+
+      - name: Compress and verify portable ZIP package
+        shell: pwsh
+        run: |
+          $zipPath = "target/dist/MarkdownEditor-windows-x64.zip"
+          $verifyDir = "target/verify-portable"
+          if (Test-Path $verifyDir) {
+            Remove-Item -Force -Recurse $verifyDir
+          }
+          Compress-Archive -Path target/dist/MarkdownEditor -DestinationPath $zipPath -Force
+          Expand-Archive -Path $zipPath -DestinationPath $verifyDir -Force
+          $requiredFiles = @(
+            "$verifyDir/MarkdownEditor/MarkdownEditor.exe",
+            "$verifyDir/MarkdownEditor/app/MarkdownEditor.cfg",
+            "$verifyDir/MarkdownEditor/runtime/bin/server/jvm.dll",
+            "$verifyDir/MarkdownEditor/runtime/lib/modules"
+          )
+          foreach ($file in $requiredFiles) {
+            if (-not (Test-Path $file -PathType Leaf)) {
+              throw "Required portable file missing: $file"
+            }
+          }
+          Remove-Item -Force -Recurse $verifyDir
+
+      - name: Upload portable ZIP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MarkdownEditor-windows-x64
+          path: target/dist/MarkdownEditor-windows-x64.zip
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: target/dist/MarkdownEditor-windows-x64.zip
+          generate_release_notes: true
