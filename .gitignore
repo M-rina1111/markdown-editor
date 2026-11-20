@@ -1,0 +1,19 @@
+# Maven build output
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+
+# Eclipse (local files preserved, excluded from Git)
+.classpath
+.project
+.settings/
+.factorypath
+
+# OS / Misc
+.DS_Store
+Thumbs.db

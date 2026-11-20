@@ -1,0 +1,14 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "java",
+      "name": "MarkdownEditor (起動)",
+      "request": "launch",
+      "mainClass": "markdown_editor/application.MarkdownEditor",
+      "projectName": "markdown_editor",
+      "encoding": "UTF-8",
+      "vmArgs": "--enable-native-access=javafx.graphics"
+    }
+  ]
+}
